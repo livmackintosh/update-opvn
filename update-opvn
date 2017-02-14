@@ -1,0 +1,73 @@
+#!/bin/bash
+# Updates OpenWRT router with new OpenVPN configs from zip file and
+# restarts the service
+#
+# Usage: $ ./update-opvn <zip-file>
+#
+# Copyright (c) 2016 Livvy Mackintosh <livvy@base.nu>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+PROGRAM_NAME='update-opvn'
+ROUTER_IP='192.168.1.1'
+ROUTER_USER='root'
+ROUTER_DIR='/etc/openvpn/'
+CONFIG_EXT='zip'
+EXCLUDE="'*windows*' '*osx*'"
+
+
+echo "[INFO]: Update started"
+basename=$(basename $1)
+pathname=$(cd "$(dirname "$1")"; pwd)/${basename}
+sshtarget=${ROUTER_USER}@${ROUTER_IP}
+
+if [ -r "$pathname" ]
+# File exists
+then
+
+  # Check file extension
+  echo "[INFO ]: File exists"
+  basename=$1; fileext=
+  while case $basename in                  
+    ?*.*) case ${basename##*.} in [A-Za-z]*|zip) true;; *) false;; esac;;
+    *) false;; esac
+  do
+    fileext=${basename##*.}$fileext
+    basename=${basename%.*}
+  done
+  echo "[INFO ]: Extension is: ${fileext}"
+  if [ "$fileext" = "$CONFIG_EXT" ]
+  # Extension is valid
+  then
+    # Copy the zip to /tmp and unpack
+    tempdir=/tmp/${PROGRAM_NAME}-${RANDOM}
+    echo "[INFO ]: Creating tempdir ${tempdir}"
+    mkdir -p $tempdir
+    echo "[INFO ]: Unzipping configs"
+    unzip -ju $pathname -x $EXCLUDE -d $tempdir
+    echo "[INFO ]: Copying files to router"
+    scp ${tempdir}/* ${sshtarget}:${ROUTER_DIR}
+    echo "[INFO ]: Restarting OVPN service"
+    ssh ${sshtarget} /etc/init.d/openvpn restart
+  else
+    # Extension is invalid
+    echo "[ERROR]: Invalid file extenion"
+  fi
+else 
+  # File doesn't exist  
+  echo "[ERROR]: The specified file doesn't exist"
+fi
+  
+echo $config_zip
